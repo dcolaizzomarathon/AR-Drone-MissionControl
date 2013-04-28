@@ -66,9 +66,88 @@ test.prototype.faceSouth = function(n) {
 	interval = setInterval(this.stopAtSouth.bind(this),100);
 }
 
+/*
 test.prototype.goForward = function() {
 	this.client.front(0.25);
 	setTimeout(function(){this.client.stop()}.bind(this),1000);
 }
+*/
+
+test.prototype.moveTo = function(e,n)
+{
+	var dNS = n, dEW = e;
+	var precision = 500;
+	var lastTime = this.latestData.time;
+
+	var self = this;
+
+	var accumulate = function() {
+		var heading = self.latestData.magneto.heading.fusionUnwrapped * Math.PI/180;
+		var v = self.latestData.demo.velocity;
+		var dt = self.latestData.time - lastTime;
+		lastTime = self.latestData.time;
+
+		var east = v.x * Math.cos(heading)
+			- v.y * Math.sin(heading);
+
+		var north = v.x * Math.sin(heading)
+			+ v.y * Math.cos(heading);
+
+		console.log("We've moved "+north+"mm north, and "+east+"mm east");
+
+		dEW -= east;
+		dNS -= north;
+	}
+
+	var adjust = function() {
+		var heading = self.latestData.magneto.heading.fusionUnwrapped * Math.PI/180;
+
+		//set right speed
+		var right = dEW * Math.cos(heading) -
+			dNS * Math.sin(heading);
+		var front = dEW * Math.sin(heading) +
+			dNS * Math.cos(heading);
+
+		if(right < 0)
+			self.client.right(linearSpeed)
+		else
+			self.client.left(linearSpeed);
+
+		if(front > 0)
+			self.client.front(linearSpeed);
+		else
+			self.client.back(linearSpeed);
+	}
+
+	var tick = function() {
+		accumulate();
+		adjust();
+
+		var dist = point_distance(dNS,dEW,0,0);
+		console.log(dist+" to go");
+		if(dist < precision)
+		{
+			console.log("We're here. Stopping");
+			self.client.stop();
+			clearInterval(tickInterval);
+		}
+	}
+
+	var tickInterval = setInterval(tick.bind(this),50);
+
+}
+
+test.prototype.abort = function() {
+	this.client.stop();
+	this.client.land();
+	process.exit();
+}
 
 exports.test = test;
+
+function point_distance(x,y,a,b)
+{
+	return Math.sqrt(
+		Math.pow(x-a,2) +
+		Math.pow(y-b,2));
+}
